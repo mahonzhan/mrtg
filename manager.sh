@@ -14,7 +14,7 @@ function stop() {
 }
 
 function start() {
-  sudo -u nobody /usr/local/mrtg/fcgi-bin/perl-fcgi.pl \
+  sudo -u nobody /usr/local/mrtg/manage/perl-fcgi.pl \
     -l $dir/logs/perl-fcgi.log \
     -pid $dir/run/perl-fcgi.pid \
     -S $dir/run/perl-fcgi.sock

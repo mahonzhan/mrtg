@@ -3,11 +3,9 @@
 # Xunlei MRTG Index Generator     
 #######################################
 #
-# Need to read host config, 
-# so cannt do with no-config host
-#
-#######################################
-# 2014/4/26  mahongzhan@xunlei.com
+# 2014/4/26  create it
+# 2014/5/5   improve performance
+# 2014/5/8   modify host sort 
 #######################################
 
 # use strict;
@@ -16,46 +14,28 @@ use Config::Grammar;
 use lib "/usr/lib64/mrtg2/";
 use MRTG_lib "2.100016";
 
-BEGIN {
-  # Automatic OS detection ... do NOT touch
-  if ( $^O =~ /^(?:(ms)?(dos|win(32|nt)?))/i ) { 
-    $main::OS = 'NT';
-    $main::SL = '\\';
-    $main::PS = ';';
-  } elsif ( $^O =~ /^NetWare$/i ) { 
-    $main::OS = 'NW';
-    $main::SL = '/';
-    $main::PS = ';';
-  } elsif ( $^O =~ /^VMS$/i ) { 
-    $main::OS = 'VMS';
-    $main::SL = '.';
-    $main::PS = ':';
-  } else {
-    $main::OS = 'UNIX';
-    $main::SL = '/';
-    $main::PS = ':';
-  }   
-}
-
 my $parser = Config::Grammar->new({
   _sections => ['/\S+/'],
   '/\S+/' => {
-    _doc => "idc node name",
-    _example => "t01",
-    _vars => ['location'],
     _sections => ['/\S+/'],
     '/\S+/' => {
-      _doc => "net type, wan or lan?",
-      _example => "wan",
+      _doc => "idc node name",
+      _example => "t01",
+      _vars => ['location'],
       _sections => ['/\S+/'],
       '/\S+/' => {
-        _table => {
-          _doc => "interface",
-          _example => "t01sw01",
+        _doc => "net type, wan or lan?",
+        _example => "wan",
+        _sections => ['/\S+/'],
+        '/\S+/' => {
+          _table => {
+            _doc => "interface",
+            _example => "t01sw01",
+          }   
         }   
       }   
-    }   
-  }   
+    }
+  }
 }); 
 
 my $cfg;
@@ -63,62 +43,101 @@ my $index;
 
 sub write_index_html() {
   $index .= <<ECHO;
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <HTML> 
 <HEAD> 
-<TITLE>Server Traffic Monitor</TITLE> 
+  <TITLE>Server Traffic Monitor</TITLE> 
+  <META HTTP-EQUIV="CONTENT-TYPE" CONTENT="TEXT/HTML; CHARSET=UTF-8" >
   <META HTTP-EQUIV="Refresh" CONTENT="300"> 
   <META HTTP-EQUIV="Cache-Control" content="no-cache"> 
   <META HTTP-EQUIV="Pragma" CONTENT="no-cache"> 
-  <META HTTP-EQUIV="Expires" CONTENT="Sat, 07 Aug 2004 05:45:24 GMT"> 
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8"> 
+  <META HTTP-EQUIV="Expires" CONTENT="Wed, 23 Apr 2014 14:48:19 GMT" >
+
   <style type="text/css">
+    h1 { text-align:center }
     body {
       font-family: "Segoe UI Semibold", "Microsoft YaHei UI", Verdana,"Helvetica Neue", Helvetica, Arial, sans-serif;
       font-size: 10pt
+    }
+    th {
+      font-family: Verdana;
+      font-weight:bold;
     }
   </style>
 </HEAD> 
  
 <BODY bgcolor="#ffffff" text="#000000" link="#000000" vlink="#000000" alink="#000000"> 
 <H1 align="center"> MRTG of switches</H1> 
-<TABLE width="1024" border="1" align="center" cellspacing="1" bordercolor="#666666" bgcolor="#FFFFFF"> 
-<TR><TD width="1032" valign="bottom"><TABLE WIDTH="100%" BORDER="1" CELLSPACING="0" BORDERCOLOR="#FFFFFF" BGCOLOR="#CCCCCC"><TR>
+<TABLE width="1024" border="1" align="center" cellspacing="1" bordercolor="#666666" bgcolor="#FFFFFF">
 ECHO
-  my %node = %{$cfg};
-  my $counter;
-  foreach my $node (sort keys %node) {
-    $index .= "<TD WIDTH=56><A HREF=index.cgi?node=$node>$node</A></TD>\n";
-    $counter++;
-    $index .= <<ECHO if $counter % 30 == 0;
-</TR></TABLE></TD></TR>
-<TR><TD width="1032" valign="bottom"><TABLE WIDTH="100%" BORDER="1" CELLSPACING="0" BORDERCOLOR="#FFFFFF" BGCOLOR="#CCCCCC"><TR>
+  my %line = %{$cfg};
+
+  # list idc nodes
+  foreach my $line (sort keys %line) {
+    my %node = %{$cfg->{$line}};
+    my $counter;
+    $index .= <<ECHO;
+<TR><TD width="1032" valign="bottom"><TABLE border="1" cellspacing="0" bordercolor="#FFFFFF" bgcolor="#CCCCCC">
+<TR><TH><a href="#$line">$line</a></TH>
 ECHO
+    foreach my $node (sort keys %node) {
+      my $NODE = uc($node);
+      $index .= "<TD WIDTH=56><DIV><A HREF=node.cgi?node=$node>$NODE</A></DIV></TD>\n";
+      $counter++;
+      $index .= <<ECHO if $counter % 25 == 0;
+</TR><TH></TH>
+ECHO
+    }
+    $index .= "</TR></TABLE></TD></TR>\n";
   }
-  $index .= "</TR></TABLE></TD></TR>\n" if $counter % 30 != 0;
+  $index .= <<STATIC;
+<TR><TD><TABLE border="1" cellspacing="0" bordercolor="#FFFFFF" bgcolor="#CCCCCC">
+<TR><TH>STATIC</TH>
+<TD WIDTH=56><A HREF=office.html>OFFICE</A></TD>
+<TD WIDTH=56><A HREF=game.html>game</A></TD>
+<TD WIDTH=56><A HREF=hub.html>hub</A></TD>
+<TD WIDTH=56><A HREF=cc>cc</A></TD>
+<TD WIDTH=56><A HREF=lixiancdn.html>lixian+vipcdn</A></TD>
+<TD WIDTH=56><A HREF=http://t07001.sandai.net:8081/smokeping/>Smokeping</A></TD>
+<TD WIDTH=56><A HREF=http://t07001.sandai.net:8080/check_speed>IDC Speed</A></TD>
+<TD WIDTH=56><A HREF=allflow.html>all flow</A></TD>
+<TD WIDTH=56><A HREF=http://t07001.sandai.net:8081/mrtg/>index history</A></TD>
+</TR></TABLE></TD></TR>
+STATIC
+  $index .= "</TABLE><BR/>\n";
+
+  # list switches
   $index .= "<TABLE border=1 cellpadding=1 cellspacing=1 bgcolor=#FFFFFF align=center>\n";
-  $index .= "<br/>\n";
-  my $column = 0;
-  foreach my $node (sort keys %node) {
-    my %switches = %{$cfg->{$node}{'wan'}};
-    my $location = $cfg->{$node}{'location'};
-    foreach my $switch (keys %switches) {
-      @interfaces = @{$cfg->{$node}{'wan'}{$switch}{'_table'}};
-      foreach (@interfaces) {
-        $int = $_->[0];
-        $spec = $switch."_".$int;
-        $index .= "<tr bgcolor=#999999>" if ($column % 2 == 0);
-        $index .= <<ECHO;
-<td><DIV><B>$node $location $switch $int</B></DIV>
+  foreach my $line (sort keys %line) {
+    my $column = 0;
+    my %node = %{$cfg->{$line}};
+    $index .= <<ECHO;
+<table border=1 cellpadding=1 cellspacing=1 bgcolor="#FFFFFF" align="center"><tr><td colspan="2" bgcolor="#FFCC00"><a name="$line">$line</a></td>
+</tr>
+ECHO
+    foreach my $node (sort keys %node) {
+      my %switches = %{$cfg->{$line}{$node}{'wan'}};
+      my $location = $cfg->{$line}{$node}{'location'};
+      foreach my $switch (keys %switches) {
+        @interfaces = @{$cfg->{$line}{$node}{'wan'}{$switch}{'_table'}};
+        foreach (@interfaces) {
+          $int = $_->[0];
+          $post = $_->[1];
+          $spec = $switch."_".$int;
+          $index .= "<tr bgcolor=#999999>" if ($column % 2 == 0);
+          $index .= <<ECHO;
+<td><DIV><B>$node $location $switch $int $post</B></DIV>
 <DIV><A HREF="$switch/$spec.html"><IMG BORDER=1 ALT="$spec Traffic Graph" SRC="$switch/$spec-day.png"></A><br>
 <SMALL></SMALL></DIV>
 </td>
 ECHO
-        $column++;
-        $index .= "</tr>" if ($column % 2 == 0);
+          $column++;
+          $index .= "</tr>" if ($column % 2 == 0);
+        }
       }
     }
+    $index .= "</TABLE>";
   }
-
   $index .= <<ECHO;
 </TABLE>
 </BODY>
@@ -131,7 +150,16 @@ ECHO
 sub write_idc_html($) {
   my $node = shift;
   my $NODE = uc($node);
-  my $location = $cfg->{$node}{'location'} or
+  my %line = %{$cfg};
+  my $net;
+  foreach my $line (sort keys %line) {
+    my %conf_node = %{$cfg->{$line}};
+    if(exists $conf_node{$node}) {
+        $net = $line;
+        last;
+    }
+  }
+  my $location = $cfg->{$net}{$node}{'location'} or
     return "<h1>ERROR: idc node does not exist</h1>\n";
   
   $index = <<ECHO;
@@ -160,7 +188,7 @@ sub write_idc_html($) {
 
 <H1>MRTG of Servers in $NODE</H1>
 <h4 align="left">
-<a href="index.cgi" target="_blank">[home]</a>&nbsp;&nbsp;
+<a href="node.cgi" target="_blank">[home]</a>&nbsp;&nbsp;
 ECHO
   
   # write switch brief info
@@ -169,7 +197,7 @@ ECHO
   <h4 align="left">
   <td width="24"><strong>$d:</strong></td>
 ECHO
-    my %switches = %{$cfg->{$node}{$d}};
+    my %switches = %{$cfg->{$net}{$node}{$d}};
     foreach my $switch (keys %switches) {
       $index .= <<ECHO;
   <a href="/mrtg/$switch" target="_blank">[$switch]</a>&nbsp;
@@ -182,21 +210,22 @@ ECHO
   $index .= <<ECHO;
   <TABLE BORDER=1 CELLPADDING=0 CELLSPACING=1>
   <tr bgcolor="#FFFFCC">
-  <td bordercolor="#A2A2A2" bgcolor="#FFFFCC" colspan="3" align="center"><span class="style3">$NODE $location</td>
+  <td bordercolor="#A2A2A2" bgcolor="#FFFFCC" colspan="3" align="center">$NODE $location</td>
   </tr>
 ECHO
   
   # write wan switch html
   my $column = 0;
-  my %switches = %{$cfg->{$node}{'wan'}};
+  my %switches = %{$cfg->{$net}{$node}{'wan'}};
   foreach my $switch (keys %switches) {
-    @interfaces = @{$cfg->{$node}{'wan'}{$switch}{'_table'}};
+    @interfaces = @{$cfg->{$net}{$node}{'wan'}{$switch}{'_table'}};
     foreach (@interfaces) {
       $int = $_->[0];
+      $post = $_->[1];
       $spec = $switch."_".$int;
       $index .= "<tr>" if ($column % 3 == 0);
       $index .= <<ECHO;
-  <td><DIV><B>$switch $int</B></DIV>
+  <td><DIV><B>$switch $int $post</B></DIV>
   <DIV><A HREF="$switch/$spec.html"><IMG BORDER=1 ALT="$spec Traffic Graph" SRC="$switch/$spec-day.png"></A><br>
   <SMALL></SMALL></DIV>
   </td>
@@ -207,34 +236,14 @@ ECHO
   }
   
   # write host html
-  sub subpath ($$) {
-    my $sub = shift;
-    my $out = shift;
-    my @s=split /$main::SL/,$sub;
-    my @o=split /$main::SL/,$out;
-    pop @o;  #Last is a filename;
-    for my $i (0..$#s) {    #cut common dirs
-      if (defined $s[0] and
-          defined $o[0] and
-          $s[0] eq $o[0] ) {
-            shift @s;
-            shift @o;
-      }
-    }
-    my $ret = join $main::SL,@s;
-    for my $i (0..$#o) {
-      $ret = "..$main::SL$ret";
-    }
-    $ret .= $main::SL;
-    $ret = "" if ($ret eq $main::SL);
-    return $ret;
-  }
   my %rcfg;
   my %cfg;
   my @target;
   my @routers;
   my %files;
-  my @cfgfile = glob "/usr/local/mrtg/host/$node*/mrtg*.conf /usr/local/mrtg/cnchost/$node*/mrtg*.conf";
+  my @cfgfile = glob "/usr/local/mrtg/host/$node*/mrtg*.conf
+                      /usr/local/mrtg/cnchost/$node*/mrtg*.conf
+                      /usr/local/mrtg/otherhost/$node*/mrtg*.conf";
   foreach $cfgfile (@cfgfile) {
     next if not ($cfgfile =~ m/$node\d+/);
     readcfg($cfgfile,\@routers,\%cfg,\%rcfg);
@@ -246,20 +255,35 @@ ECHO
         $rcfg{host}{$targ} = $1 if (defined $1);
       }
     }
-    cfgcheck(\@routers, \%cfg, \%rcfg, \@target);
-    $rcfg{prefixes} = {} if (!defined $rcfg{prefixes});
-    my $pref = subpath($cfg{htmldir},"/usr/local/mrtg/htdocs/$node.html");
-    for my $targ (@routers) {
-      $rcfg{prefixes}->{$targ} = $pref
-        if (! defined $rcfg{prefixes}->{$targ});
-    }
+    # much overhead
+    #cfgcheck(\@routers, \%cfg, \%rcfg, \@target);
+    #$rcfg{prefixes} = {} if (!defined $rcfg{prefixes});
+    #my $pref = subpath($cfg{htmldir},"/usr/local/mrtg/htdocs/$node.html");
+    #for my $targ (@routers) {
+    #  $rcfg{prefixes}->{$targ} = $pref
+    #    if (! defined $rcfg{prefixes}->{$targ});
+    #}
+
+  }
+  for my $targ (@routers) {
+    @part = split(/\./, $targ);
+    $pref = $part[0]."/";
+    $rcfg{prefixes}->{$targ} = $pref
+      if (! defined $rcfg{prefixes}->{$targ});
   }
   my @filtered;
   foreach my $item (@routers) {
-    my $regex = "eth|em|vmnic|www_cpu|655|bond";
+    my $regex = "eth|em|vmnic|www_cpu|bond|_\\d+";
     push @filtered, $item if $item =~ /$regex/;
   };
-  my @order = @filtered;
+  my @order = 
+    sort {
+      $a =~ m[$node(\d+)];
+      my $aval = $1;
+      $b =~ m[$node(\d+)];
+      my $bval = $1;
+      $aval <=> $bval;
+    } @filtered;
   my $hostcolumn = 0;
   my $first = $order[0];
   my $host = $rcfg{host}{$first};
